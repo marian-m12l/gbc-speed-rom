@@ -1,11 +1,29 @@
 
 ; Params: variable address
-MACRO initWord
+MACRO InitWord
     ld de, \1
     xor a
     ld [de], a
     inc de
     ld [de], a
+ENDM
+
+
+; Params: variable address
+MACRO IncrementWord
+    ld de, \1		        ;[3]
+    ld a, [de]				;[2]
+    ld l, a					;[1]		; load low byte of variable value into l
+    inc de					;[2]
+    ld a, [de]				;[2]
+    ld h, a					;[1]		; load high byte of variable value into h
+    inc hl					;[2]
+    ld de, \1       		;[3]
+    ld a, l					;[1]
+    ld [de], a				;[2]
+    inc de					;[2]
+    ld a, h					;[1]
+    ld [de], a				;[2]
 ENDM
 
 

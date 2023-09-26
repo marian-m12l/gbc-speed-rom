@@ -33,18 +33,21 @@ Start:
 	xor a
 	ldh [rIE], a	; All interrupts OFF
 	ld sp, $FFFF	; Set stack pointer
+	; Setup a slow timer interrupt --> counter is incremented @ 16 Hz in Normal Speed
 	ld a, $00
-	ldh [rTMA], a	; ; Timer is reset to this values after each overflow --> 0 for the slowest timer interrupts
-	ld a, %00000110
-	ldh [rTAC], a	; Enable timer @ CPU clock / 64 (CGB Double Speed --> 131072 Hz) FIXME use slower timer?
+	ldh [rTMA], a	; Timer is reset to this values after each overflow --> 0 for the slowest timer interrupts
+	ld a, %00000100
+	ldh [rTAC], a	; Enable timer @ CPU clock / 1024 (Normal Speed --> 4096 Hz / CGB Double Speed --> 8192 Hz)
 	ld a, $05		; Timer and VBlank interrupts: 0x04 | 0x01
 	ldh [rIE], a
 
 	; Initialize WRAM variables
-	initWord wCounter1
-	initWord wDoubleSpeed
-	initWord wJoypad
-	initWord wLatched
+	InitWord wCounter1
+	InitWord wCounter2
+	InitWord wSubCounter
+	InitWord wDoubleSpeed
+	InitWord wJoypad
+	InitWord wLatched
 
 
 .waitvbl:
@@ -219,7 +222,7 @@ VBlank:
 	PrintText TextDataSpeed, TextDataSpeedEnd-TextDataSpeed, 0, a, 30
 
 	PrintWordHex wCounter1, 20, 100, 50
-	;PrintWordHex wCounter2, 24, 80, 80
+	PrintWordHex wCounter2, 24, 100, 70
 	PrintWordHex wDoubleSpeed, 28, 100, 90
 
 	;PrintWordHex wJoypad, 32, 80, 120
@@ -236,19 +239,22 @@ VBlank:
 ; Timer interrupt
 Timer:
 	; Increment counter 1
-	ld de, wCounter1		;[3]
-	ld a, [de]				;[2]
-	ld l, a					;[1]		; load low byte of wCounter1 value into l
-	inc de					;[2]
-	ld a, [de]				;[2]
-	ld h, a					;[1]		; load high byte of wCounter1 value into h
-	inc hl					;[2]
-	ld de, wCounter1		;[3]
-	ld a, l					;[1]
-	ld [de], a				;[2]
-	inc de					;[2]
-	ld a, h					;[1]
-	ld [de], a				;[2]
+	IncrementWord wCounter1
+	; Increment counter 2
+	; In Normal Speed, increment counter 2 normally
+	ld a, [wDoubleSpeed]
+	bit 0, a
+	jr z, .incrementCounter2
+	; In Double Speed, increment only once every two interrupts to compensate the faster clock and keep increment rate stable
+	ld a, [wSubCounter]
+	xor $01
+	ld [wSubCounter], a
+	bit 0, a
+	jr z, .incrementCounter2
+	jr .done
+.incrementCounter2:
+	IncrementWord wCounter2
+.done:
 	reti
 
 
@@ -294,6 +300,8 @@ SECTION	"Variables", WRAMX
 
 wTextPosX:			DS 1
 wCounter1:			DS 2
+wCounter2:			DS 2
+wSubCounter:		DS 2
 wJoypad:			DS 2
 wLatched:			DS 2
 wDoubleSpeed:		DS 2
